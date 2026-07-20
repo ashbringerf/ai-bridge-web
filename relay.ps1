@@ -12,10 +12,28 @@ $DIR = Join-Path $env:USERPROFILE ".ai-relay"
 Write-Host "=== AI Bridge relay setup ===" -ForegroundColor Cyan
 Write-Host "Use this PC's opencode, model via admin's internal mify.`n"
 
-# 1. python
-$py = (Get-Command python -ErrorAction SilentlyContinue).Source
-if (-not $py) { $py = Read-Host "python.exe path (install python.org first if none)" }
+# 1. python (detected -> confirm or override)
+$pyDetected = (Get-Command python -ErrorAction SilentlyContinue).Source
+if ($pyDetected) {
+  $ans = Read-Host "python path [$pyDetected] (Enter=use it, or paste another)"
+  $py = if ($ans) { $ans } else { $pyDetected }
+} else {
+  $py = Read-Host "python.exe path (install from python.org if none)"
+}
+Write-Host "  python = $py"
 & $py -m pip install -q requests 2>$null
+
+# 1b. agent (opencode) path -> detected -> confirm or override
+$ocDetected = (Get-Command opencode -ErrorAction SilentlyContinue).Source
+if ($ocDetected) {
+  $ans = Read-Host "opencode path [$ocDetected] (Enter=use it, or paste another)"
+  $ocBin = if ($ans) { $ans } else { $ocDetected }
+} else {
+  Write-Host "  opencode not found." -ForegroundColor Yellow
+  $ans = Read-Host "paste opencode path, or Enter to auto-install"
+  if ($ans) { $ocBin = $ans } else { npm install -g opencode-ai | Out-Null; $ocBin = (Get-Command opencode -ErrorAction SilentlyContinue).Source }
+}
+Write-Host "  opencode = $ocBin"
 
 # 2. download relay
 New-Item -ItemType Directory -Path $DIR -Force | Out-Null
@@ -29,7 +47,10 @@ $env_ = "BRIDGE_GH_TOKEN=$token`nBRIDGE_REPO_OWNER=$owner`nBRIDGE_REPO_NAME=$rep
 $utf8 = New-Object System.Text.UTF8Encoding $false
 [System.IO.File]::WriteAllText((Join-Path $DIR ".env"), $env_, $utf8)
 
-# 4. auto-config opencode to use relay as model provider (project-level in current dir)
+# 4. project dir (where agent runs/edits) + model
+$proj = Read-Host "project dir for agent [current: $(Get-Location)] (Enter=current, or paste path)"
+if ($proj) { if (-not (Test-Path $proj)) { New-Item -ItemType Directory -Path $proj -Force | Out-Null }; Set-Location $proj }
+Write-Host "  project dir = $(Get-Location)"
 $model = Read-Host "model to use [ppio/pa/gpt-5.5]"; if (-not $model) { $model = "ppio/pa/gpt-5.5" }
 $oc = @{
   '$schema' = "https://opencode.ai/config.json"
