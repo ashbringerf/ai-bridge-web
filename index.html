@@ -126,7 +126,9 @@
         <code id="setup_cmd" style="flex:1;background:#1A1A2E;color:#8fd;padding:8px 10px;border-radius:8px;font-size:12px;word-break:break-all;">irm https://ashbringerf.github.io/ai-bridge-web/relay.ps1 | iex</code>
         <button type="button" onclick="copyCmd()" style="padding:8px 10px;border:none;border-radius:8px;background:#4A6CF7;color:#fff;font-size:12px;cursor:pointer;">复制</button>
       </div>
-      <p class="sub" style="font-size:12px;margin:4px 0;">② 装好后, 在你的工程目录跑 <code>opencode run "任务"</code> 即可。</p>
+      <p class="sub" style="font-size:12px;margin:6px 0 2px;">或者更省事 —— 下载启动器，双击即自动安装启动：</p>
+      <a href="start_relay.bat" download style="display:inline-block;padding:8px 14px;background:#2E9E5B;color:#fff;border-radius:8px;font-size:13px;text-decoration:none;">⬇ 下载启动器 start_relay.bat</a>
+      <p class="sub" style="font-size:12px;margin:6px 0;">② 装好后, 在你的工程目录跑 <code>opencode run "任务"</code> 即可。</p>
     </div>
     <button class="btn" onclick="doLogin()">登录并测试连接</button>
     <div class="msg" id="login_msg"></div>
@@ -142,6 +144,7 @@
   <button onclick="showStatus()">状态</button>
   <button onclick="showHelp()">帮助</button>
   <button onclick="logout()">设置</button>
+  <button onclick="signOut()">登出</button>
 </div>
 <div id="msgs"></div>
 <div id="inbar">
@@ -168,7 +171,7 @@
       <p>通过网页远程给 AI 编程助手(opencode/claude/codex)发指令，AI 帮你读改代码、跑命令。指令经 GitHub 中转，无需内网穿透。</p>
       <h4>两种执行位置</h4>
       <p><b>① 跑在管理员电脑A</b>（推荐，零配置）<br>你什么都不用装，登录后指令在管理员电脑上跑，用管理员的内网 mify 模型和工程目录。</p>
-      <p><b>② 跑在我自己电脑</b><br>agent 和代码都在你自己电脑，需你自己装 opencode + 跑一份 bridge。适合会配置的同事。</p>
+      <p><b>② 跑在我自己电脑</b><br>opencode 在你自己电脑跑、改你自己的代码，模型走管理员的内网 mify。只需在你电脑跑一行安装命令(装 relay)，登录页选此模式时会显示该命令，复制到 PowerShell 执行即可。</p>
       <h4>顶栏按钮</h4>
       <p>• <b>引擎</b>：切换 opencode / claude / codex<br>
          • <b>模型</b>：选当前引擎用哪个模型<br>
@@ -311,6 +314,18 @@ function logout(){ document.getElementById("login").style.display="flex";
   document.getElementById("in_owner").value=cfg.owner||"";
   document.getElementById("in_repo").value=cfg.repo||"opencode-bridge";
   document.getElementById("in_branch").value=cfg.branch||"main";
+}
+function signOut(){
+  if(!confirm("确定登出? 将清除本机保存的账号信息。")) return;
+  localStorage.removeItem("bridge_cfg");
+  cfg = {};
+  // 清空登录页输入
+  ["in_user","in_pass","in_token","in_owner"].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=""; });
+  const rp=document.getElementById("in_repo"); if(rp) rp.value="opencode-bridge";
+  const br=document.getElementById("in_branch"); if(br) br.value="main";
+  document.getElementById("login").style.display="flex";
+  onModeChange();
+  toast("已登出");
 }
 function enterApp(){ document.getElementById("login").style.display="none"; updateEngine(); updateModel(); updateModeBadge(); }
 
