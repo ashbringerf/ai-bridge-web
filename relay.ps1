@@ -31,7 +31,25 @@ if ($ocDetected) {
 } else {
   Write-Host "  opencode not found." -ForegroundColor Yellow
   $ans = Read-Host "paste opencode path, or Enter to auto-install"
-  if ($ans) { $ocBin = $ans } else { npm install -g opencode-ai | Out-Null; $ocBin = (Get-Command opencode -ErrorAction SilentlyContinue).Source }
+  if ($ans) {
+    $ocBin = $ans
+  } else {
+    # need npm; if missing, try winget to install Node.js
+    if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
+      Write-Host "  npm not found (Node.js missing)." -ForegroundColor Yellow
+      if (Get-Command winget -ErrorAction SilentlyContinue) {
+        Write-Host "  installing Node.js via winget (accept prompts)..." -ForegroundColor Cyan
+        winget install -e --id OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements
+        Write-Host "  Node.js installed. CLOSE this window, open a NEW PowerShell, and run start_relay.bat again." -ForegroundColor Green
+        pause; exit
+      } else {
+        Write-Host "  Please install Node.js manually: https://nodejs.org (LTS), then rerun." -ForegroundColor Red
+        pause; exit
+      }
+    }
+    npm install -g opencode-ai | Out-Null
+    $ocBin = (Get-Command opencode -ErrorAction SilentlyContinue).Source
+  }
 }
 Write-Host "  opencode = $ocBin"
 
@@ -54,7 +72,7 @@ Write-Host "  project dir = $(Get-Location)"
 $model = Read-Host "model to use [ppio/pa/gpt-5.5]"; if (-not $model) { $model = "ppio/pa/gpt-5.5" }
 $oc = @{
   '$schema' = "https://opencode.ai/config.json"
-  provider = @{ viamify = @{ npm = "@ai-sdk/openai-compatible"; name = "ViaMify"; options = @{ baseURL = "http://127.0.0.1:8799/v1" }; models = @{ "$model" = @{ name = "$model via mify" } } } }
+  provider = @{ viamify = @{ npm = "@ai-sdk/openai-compatible"; name = "ViaMify"; options = @{ baseURL = "http://127.0.0.1:8799/v1"; apiKey = "relay-placeholder" }; models = @{ "$model" = @{ name = "$model via mify" } } } }
   model = "viamify/$model"
 }
 $ocPath = Join-Path (Get-Location) "opencode.json"
