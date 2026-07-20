@@ -132,7 +132,7 @@ CODEX_BIN    = _find_bin("BRIDGE_CODEX_BIN",
                          "codex.cmd", "codex",
                          r"C:\Users\MI\AppData\Roaming\npm\codex.cmd")
 
-POLL_INTERVAL = float(os.environ.get("BRIDGE_POLL", "3"))          # 轮询间隔(秒)
+POLL_INTERVAL = float(os.environ.get("BRIDGE_POLL", "1"))          # 轮询间隔(秒)
 CMD_TIMEOUT   = int(os.environ.get("BRIDGE_CMD_TIMEOUT", "600"))   # 单条指令超时(秒)
 
 # ---- 多用户 (需求2) ----
@@ -631,20 +631,26 @@ def main():
         print("!! 未读到 GITHUB_TOKEN. 请在 .env 里填 BRIDGE_GH_TOKEN")
         sys.exit(1)
 
+    _tick = 0
+    # 聊天指令扫描的降频倍数(相对 mify): admin 时聊天不敏感, 每 CHAT_EVERY 轮扫一次,
+    # 让 mify 中转(模式③模型往返, 延迟敏感)能每轮快速处理.
+    CHAT_EVERY = 1 if BRIDGE_ROLE == "local" else 3
     while True:
         try:
-            # 聊天指令(需求1/2, 或模式③本地执行)
-            for it, user in _collect_messages():
-                handle_message(it, user)
-            # mify 中转请求(需求3服务端): 只有 admin 角色处理, local 不碰
+            # admin: 优先且每轮处理 mify 中转(模式③模型往返, 延迟敏感)
             if BRIDGE_ROLE != "local":
                 for it in list_dir(DIR_MIFY_REQ):
                     if it["type"] == "file" and it["name"].endswith(".json"):
                         handle_mify_req(it)
+            # 聊天指令(需求1/2, 或模式③本地执行): local 每轮扫, admin 降频扫
+            if _tick % CHAT_EVERY == 0:
+                for it, user in _collect_messages():
+                    handle_message(it, user)
         except requests.HTTPError as e:
             print(f"[HTTP错误] {e} - {getattr(e.response,'text','')[:200]}")
         except Exception:
             print("[异常]\n" + traceback.format_exc())
+        _tick += 1
         time.sleep(POLL_INTERVAL)
 
 
