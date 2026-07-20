@@ -74,6 +74,23 @@
   .prog .bar{height:4px;border-radius:2px;background:#E3E7EF;overflow:hidden;}
   .prog .bar > i{display:block;height:100%;width:30%;background:linear-gradient(90deg,#4A6CF7,#6B4AF7);border-radius:2px;animation:indet 1.4s ease-in-out infinite;}
   @keyframes indet{0%{margin-left:-30%;}100%{margin-left:100%;}}
+
+  /* 模式徽章 */
+  .badge{font-size:11px;background:rgba(255,255,255,.25);color:#fff;padding:3px 8px;border-radius:10px;white-space:nowrap;margin-right:4px;}
+  /* 帮助/状态 全屏弹窗 */
+  .fullmodal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:45;padding:16px;}
+  .fullmodal.show{display:flex;}
+  .fullmodal .panel{background:#fff;border-radius:16px;width:100%;max-width:440px;max-height:82vh;display:flex;flex-direction:column;overflow:hidden;}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #eee;font-size:16px;color:#1A1A2E;}
+  .panel-head .x{cursor:pointer;color:#888;font-size:18px;padding:0 4px;}
+  .panel-body{padding:14px 18px;overflow-y:auto;font-size:14px;color:#333;line-height:1.6;}
+  .panel-body h4{margin:14px 0 4px;color:#4A6CF7;font-size:14px;}
+  .panel-body p{margin:4px 0;color:#444;}
+  .loglist{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#F2F4F8;border-radius:8px;padding:8px;max-height:240px;overflow-y:auto;}
+  .loglist .item{padding:4px 0;border-bottom:1px solid #e5e8ef;word-break:break-all;}
+  .loglist .item .t{color:#9AA0AE;}
+  .loglist .item.ok .s{color:#2a2;} .loglist .item.err .s{color:#e33;} .loglist .item.wait .s{color:#4A6CF7;}
+  button.mini{font-size:11px;padding:2px 8px;border:1px solid #D6DBE6;background:#EFF1F6;color:#4A6CF7;border-radius:10px;cursor:pointer;margin-left:8px;}
 </style>
 </head>
 <body>
@@ -83,18 +100,26 @@
   <div class="card">
     <h1>AI Bridge</h1>
     <p class="sub">连接你的 GitHub 信箱仓库</p>
+
+    <label>执行位置 (agent 在哪台电脑跑)</label>
+    <select id="in_mode" onchange="onModeChange()">
+      <option value="A">跑在管理员电脑A (零配置, 推荐)</option>
+      <option value="self">跑在我自己电脑 (需自己装 bridge)</option>
+    </select>
+
     <label>你的用户名 (多人共用时区分, 如 fengtian)</label>
     <input id="in_user" type="text" placeholder="fengtian" autocomplete="off">
     <label>访问口令 (管理员分配)</label>
     <input id="in_pass" type="password" placeholder="口令" autocomplete="off">
     <label>GitHub Token (github_pat_…)</label>
     <input id="in_token" type="password" placeholder="github_pat_..." autocomplete="off">
-    <label>GitHub 用户名 (owner)</label>
-    <input id="in_owner" type="text" placeholder="your-github-name" autocomplete="off">
+    <label id="lbl_owner">GitHub 用户名 (owner)</label>
+    <input id="in_owner" type="text" placeholder="管理员的 github 名" autocomplete="off">
     <label>仓库名 (repo)</label>
     <input id="in_repo" type="text" value="opencode-bridge" autocomplete="off">
     <label>分支 (branch)</label>
     <input id="in_branch" type="text" value="main" autocomplete="off">
+    <p class="sub" id="mode_hint" style="margin-top:10px;font-size:12px;">指令将发到管理员电脑A 执行, 用管理员的 CLI 和工程目录。</p>
     <button class="btn" onclick="doLogin()">登录并测试连接</button>
     <div class="msg" id="login_msg"></div>
   </div>
@@ -103,9 +128,11 @@
 <!-- 主界面 -->
 <div id="bar">
   <span class="title">AI Bridge</span>
+  <span id="mode_badge" class="badge"></span>
   <button id="btn_engine" onclick="cycleEngine()">opencode</button>
   <button id="btn_model" onclick="showModel()">模型:默认</button>
-  <button onclick="testConn()">测试</button>
+  <button onclick="showStatus()">状态</button>
+  <button onclick="showHelp()">帮助</button>
   <button onclick="logout()">设置</button>
 </div>
 <div id="msgs"></div>
@@ -121,6 +148,42 @@
   <div class="sheet">
     <h3 id="modal_title">模型</h3>
     <div id="modal_list"></div>
+  </div>
+</div>
+
+<!-- 帮助弹窗 -->
+<div id="helpModal" class="fullmodal" onclick="if(event.target.id==='helpModal')hideHelp()">
+  <div class="panel">
+    <div class="panel-head"><b>使用帮助</b><span class="x" onclick="hideHelp()">✕</span></div>
+    <div class="panel-body">
+      <h4>这是什么</h4>
+      <p>通过网页远程给 AI 编程助手(opencode/claude/codex)发指令，AI 帮你读改代码、跑命令。指令经 GitHub 中转，无需内网穿透。</p>
+      <h4>两种执行位置</h4>
+      <p><b>① 跑在管理员电脑A</b>（推荐，零配置）<br>你什么都不用装，登录后指令在管理员电脑上跑，用管理员的内网 mify 模型和工程目录。</p>
+      <p><b>② 跑在我自己电脑</b><br>agent 和代码都在你自己电脑，需你自己装 opencode + 跑一份 bridge。适合会配置的同事。</p>
+      <h4>顶栏按钮</h4>
+      <p>• <b>引擎</b>：切换 opencode / claude / codex<br>
+         • <b>模型</b>：选当前引擎用哪个模型<br>
+         • <b>状态</b>：看连接状态和消息记录<br>
+         • <b>设置</b>：改账号/执行位置</p>
+      <h4>底部</h4>
+      <p>• <b>🎤</b> 语音输入　• <b>截屏</b> 让电脑截图回传　• <b>发送</b> 发指令</p>
+      <h4>注意</h4>
+      <p>• 管理员电脑A 的 bridge 必须开着，否则指令会等待超时。<br>
+         • 经 GitHub 中转有秒级延迟，复杂任务较慢，属正常。</p>
+    </div>
+  </div>
+</div>
+
+<!-- 状态弹窗 -->
+<div id="statusModal" class="fullmodal" onclick="if(event.target.id==='statusModal')hideStatus()">
+  <div class="panel">
+    <div class="panel-head"><b>连接状态 / 日志</b><span class="x" onclick="hideStatus()">✕</span></div>
+    <div class="panel-body">
+      <div id="status_info"></div>
+      <h4>消息日志 <button class="mini" onclick="clearLog()">清空</button></h4>
+      <div id="log_list" class="loglist"></div>
+    </div>
   </div>
 </div>
 
@@ -165,8 +228,9 @@ function phonePath(ts){ const u=safeUser(); return u==="default" ? `to_phone/${t
 async function sendCommand(text){
   const ts = String(Date.now());
   const path = pcPath(ts);
-  // 首行带口令(#token:), 供电脑端鉴权. 默认用户/无口令时不带
-  const payload = (cfg.pass && cfg.user!=="default") ? ("#token:"+cfg.pass+"\n"+text) : text;
+  // 首行带口令(#token:), 供电脑A鉴权. self模式(自己信箱)不需口令; 默认用户/无口令也不带
+  const needToken = (cfg.mode!=="self") && cfg.pass && cfg.user!=="default";
+  const payload = needToken ? ("#token:"+cfg.pass+"\n"+text) : text;
   const body = { message:`cmd ${ts}`, content:b64encodeUtf8(payload), branch:cfg.branch||"main" };
   const r = await fetch(contentsUrl(path), {method:"PUT", headers:{...headers(),"Content-Type":"application/json"}, body:JSON.stringify(body)});
   if(!r.ok) throw new Error("发送失败 HTTP "+r.status+": "+(await r.text()).slice(0,120));
@@ -192,6 +256,7 @@ async function deleteFile(path, sha){
 // ============ 登录 ============
 async function doLogin(){
   cfg = {
+    mode:  document.getElementById("in_mode").value,
     user:  document.getElementById("in_user").value.trim()||"default",
     pass:  document.getElementById("in_pass").value,
     token: document.getElementById("in_token").value.trim(),
@@ -208,7 +273,30 @@ async function doLogin(){
     else { msg.style.color="#e33"; msg.textContent="失败 HTTP "+r.status+": "+(await r.text()).slice(0,80); }
   }catch(e){ msg.style.color="#e33"; msg.textContent="异常: "+e.message; }
 }
+function onModeChange(){
+  const mode = document.getElementById("in_mode").value;
+  const hint = document.getElementById("mode_hint");
+  const lbl = document.getElementById("lbl_owner");
+  const ownerIn = document.getElementById("in_owner");
+  if(mode==="self"){
+    hint.innerHTML = "<b>跑在我自己电脑</b>：agent 和工程都在<b>你自己电脑</b>，改你自己的代码。<br>"
+      + "• 需要你自己电脑装好 opencode/claude/codex + 跑一份 bridge<br>"
+      + "• 模型可用你自己的 key，或经管理员借内网 mify<br>"
+      + "• owner/repo 填<b>你自己的</b>信箱仓，不需要访问口令";
+    lbl.textContent = "GitHub 用户名 (你自己的 owner)";
+    ownerIn.placeholder = "你自己的 github 名";
+  } else {
+    hint.innerHTML = "<b>跑在管理员电脑A</b>（推荐，零配置）：agent 跑在<b>管理员电脑</b>，用管理员的 CLI 和工程目录。<br>"
+      + "• 你什么都不用装，填好账号即可用<br>"
+      + "• 用管理员的内网 mify 模型<br>"
+      + "• owner/repo 填<b>管理员的</b>信箱仓，需要访问口令";
+    lbl.textContent = "GitHub 用户名 (管理员的 owner)";
+    ownerIn.placeholder = "管理员的 github 名";
+  }
+}
 function logout(){ document.getElementById("login").style.display="flex";
+  if(cfg.mode) document.getElementById("in_mode").value=cfg.mode;
+  onModeChange();
   document.getElementById("in_user").value=cfg.user||"";
   document.getElementById("in_pass").value=cfg.pass||"";
   document.getElementById("in_token").value=cfg.token||"";
@@ -216,7 +304,58 @@ function logout(){ document.getElementById("login").style.display="flex";
   document.getElementById("in_repo").value=cfg.repo||"opencode-bridge";
   document.getElementById("in_branch").value=cfg.branch||"main";
 }
-function enterApp(){ document.getElementById("login").style.display="none"; updateEngine(); updateModel(); }
+function enterApp(){ document.getElementById("login").style.display="none"; updateEngine(); updateModel(); updateModeBadge(); }
+
+// ============ 模式徽章 ============
+function updateModeBadge(){
+  const el=document.getElementById("mode_badge");
+  if(!el) return;
+  el.textContent = (cfg.mode==="self") ? "📍我的电脑" : "☁️电脑A";
+}
+
+// ============ 帮助 ============
+function showHelp(){ document.getElementById("helpModal").classList.add("show"); }
+function hideHelp(){ document.getElementById("helpModal").classList.remove("show"); }
+
+// ============ 状态 / 日志 ============
+let LOG = [];
+try{ LOG = JSON.parse(localStorage.getItem("bridge_log")||"[]"); }catch(e){ LOG=[]; }
+function logAdd(status, text){
+  LOG.unshift({ t:new Date().toLocaleTimeString(), s:status, x:(text||"").slice(0,80) });
+  LOG = LOG.slice(0,50);
+  try{ localStorage.setItem("bridge_log", JSON.stringify(LOG)); }catch(e){}
+}
+function clearLog(){ LOG=[]; localStorage.removeItem("bridge_log"); renderLog(); }
+function renderLog(){
+  const box=document.getElementById("log_list");
+  if(!box) return;
+  if(!LOG.length){ box.innerHTML='<div class="item">暂无记录</div>'; return; }
+  box.innerHTML = LOG.map(e=>{
+    const cls = e.s==="成功"?"ok":(e.s==="失败"||e.s==="超时"?"err":"wait");
+    return `<div class="item ${cls}"><span class="t">${e.t}</span> <span class="s">[${e.s}]</span> ${escapeHtml(e.x)}</div>`;
+  }).join("");
+}
+function escapeHtml(s){ return (s||"").replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+async function showStatus(){
+  const info=document.getElementById("status_info");
+  const loc = (cfg.mode==="self") ? "我自己电脑" : "管理员电脑A";
+  info.innerHTML = `<h4>当前配置</h4>`
+    + `<p>执行位置: <b>${loc}</b><br>`
+    + `用户名: ${escapeHtml(cfg.user||"-")}<br>`
+    + `信箱仓: ${escapeHtml(cfg.owner||"-")}/${escapeHtml(cfg.repo||"-")}@${escapeHtml(cfg.branch||"main")}<br>`
+    + `当前引擎: ${ENGINES[engineIdx]}　模型: ${document.getElementById("btn_model").textContent}</p>`
+    + `<h4>连接检测</h4><p id="status_conn">检测中…</p>`;
+  renderLog();
+  document.getElementById("statusModal").classList.add("show");
+  // 实时测连接
+  try{
+    const r = await fetch(`${API}/repos/${cfg.owner}/${cfg.repo}`, {headers:headers()});
+    document.getElementById("status_conn").innerHTML = r.ok
+      ? '<span style="color:#2a2">✓ GitHub 信箱连接正常</span>'
+      : `<span style="color:#e33">✗ 失败 HTTP ${r.status}</span>`;
+  }catch(e){ document.getElementById("status_conn").innerHTML = '<span style="color:#e33">✗ 网络异常</span>'; }
+}
+function hideStatus(){ document.getElementById("statusModal").classList.remove("show"); }
 
 async function testConn(){
   if(!cfgReady()){ logout(); return; }
@@ -292,6 +431,7 @@ function makeProgress(bubble, label){
 }
 async function sendAndAwait(payload, bubble, label){
   const update = makeProgress(bubble, label||"电脑");
+  logAdd("发送", payload);
   try{
     const ts=await sendCommand(payload);
     let waited=0, reply=null;
@@ -301,8 +441,14 @@ async function sendAndAwait(payload, bubble, label){
       reply=await fetchReply(ts);
       if(reply!=null) break;
     }
-    renderReply(bubble, reply!=null? reply : "(等待超时, 电脑端 bridge 可能没在运行)");
-  }catch(e){ bubble.textContent="(出错: "+e.message+")"; }
+    if(reply!=null){
+      renderReply(bubble, reply);
+      logAdd(reply.startsWith("(")? "失败" : "成功", reply);
+    } else {
+      renderReply(bubble, "(等待超时, 电脑端 bridge 可能没在运行)");
+      logAdd("超时", "等待回复超时");
+    }
+  }catch(e){ bubble.textContent="(出错: "+e.message+")"; logAdd("失败", e.message); }
 }
 function onSend(){
   const t=document.getElementById("input").value.trim();
