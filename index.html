@@ -503,9 +503,18 @@ function onSend(){
   document.getElementById("input").value="";
   autoGrow();
   addBubble(t, true);
-  const model=currentModelName();
-  const tag="@"+ENGINES[engineIdx]+(model?":"+model:"");
-  const label=ENGINES[engineIdx]+(model?"("+MODELS[ENGINES[engineIdx]][modelIdx[ENGINES[engineIdx]]]+")":"");
+  let tag, label;
+  if(cfg.mode==="mode3"){
+    // 模式③: 本地 opencode 的 opencode.json 已把默认模型设为 viamify(经relay借A mify).
+    // 不能塞网页里的模型名(那是给电脑A直连用的, provider名对不上会 UnknownError).
+    // 只发引擎, 不带模型 -> 用本地默认模型.
+    tag="@opencode";
+    label="opencode(借A mify)";
+  } else {
+    const model=currentModelName();
+    tag="@"+ENGINES[engineIdx]+(model?":"+model:"");
+    label=ENGINES[engineIdx]+(model?"("+MODELS[ENGINES[engineIdx]][modelIdx[ENGINES[engineIdx]]]+")":"");
+  }
   const b=addBubble("", false);
   sendAndAwait(tag+" "+t, b, label);
 }
