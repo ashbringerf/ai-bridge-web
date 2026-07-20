@@ -261,6 +261,14 @@ def _run_cli(argv, label, cwd=None, extra_env=None):
     if extra_env:
         env = os.environ.copy()
         env.update(extra_env)
+    # Windows: 若可执行是 .cmd/.bat/.ps1 (npm 全局装的 opencode 常是 .cmd/.ps1),
+    # 不能直接被 subprocess 当 exe 跑 (WinError 193). 用对应解释器包裹.
+    if os.name == "nt" and argv:
+        low = str(argv[0]).lower()
+        if low.endswith((".cmd", ".bat")):
+            argv = ["cmd", "/c"] + list(argv)
+        elif low.endswith(".ps1"):
+            argv = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File"] + list(argv)
     try:
         proc = subprocess.run(
             argv,
