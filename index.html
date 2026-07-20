@@ -120,6 +120,14 @@
     <label>分支 (branch)</label>
     <input id="in_branch" type="text" value="main" autocomplete="off">
     <p class="sub" id="mode_hint" style="margin-top:10px;font-size:12px;">指令将发到管理员电脑A 执行, 用管理员的 CLI 和工程目录。</p>
+    <div id="self_setup" style="display:none;margin:8px 0;">
+      <p class="sub" style="font-size:12px;margin:4px 0;">① 先在你自己电脑的 PowerShell 里跑这行(装 relay，用你本地 opencode + 管理员 mify)：</p>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <code id="setup_cmd" style="flex:1;background:#1A1A2E;color:#8fd;padding:8px 10px;border-radius:8px;font-size:12px;word-break:break-all;">irm https://ashbringerf.github.io/ai-bridge-web/relay.ps1 | iex</code>
+        <button type="button" onclick="copyCmd()" style="padding:8px 10px;border:none;border-radius:8px;background:#4A6CF7;color:#fff;font-size:12px;cursor:pointer;">复制</button>
+      </div>
+      <p class="sub" style="font-size:12px;margin:4px 0;">② 装好后, 在你的工程目录跑 <code>opencode run "任务"</code> 即可。</p>
+    </div>
     <button class="btn" onclick="doLogin()">登录并测试连接</button>
     <div class="msg" id="login_msg"></div>
   </div>
@@ -278,21 +286,21 @@ function onModeChange(){
   const hint = document.getElementById("mode_hint");
   const lbl = document.getElementById("lbl_owner");
   const ownerIn = document.getElementById("in_owner");
+  const setup = document.getElementById("self_setup");
   if(mode==="self"){
-    hint.innerHTML = "<b>跑在我自己电脑</b>：agent 和工程都在<b>你自己电脑</b>，改你自己的代码。<br>"
-      + "• 需要你自己电脑装好 opencode/claude/codex + 跑一份 bridge<br>"
-      + "• 模型可用你自己的 key，或经管理员借内网 mify<br>"
-      + "• owner/repo 填<b>你自己的</b>信箱仓，不需要访问口令";
-    lbl.textContent = "GitHub 用户名 (你自己的 owner)";
-    ownerIn.placeholder = "你自己的 github 名";
+    hint.innerHTML = "<b>跑在我自己电脑</b>：opencode 在你本地跑、改你的工程，模型走管理员的内网 mify。";
+    if(setup) setup.style.display = "block";
   } else {
-    hint.innerHTML = "<b>跑在管理员电脑A</b>（推荐，零配置）：agent 跑在<b>管理员电脑</b>，用管理员的 CLI 和工程目录。<br>"
-      + "• 你什么都不用装，填好账号即可用<br>"
-      + "• 用管理员的内网 mify 模型<br>"
-      + "• owner/repo 填<b>管理员的</b>信箱仓，需要访问口令";
-    lbl.textContent = "GitHub 用户名 (管理员的 owner)";
-    ownerIn.placeholder = "管理员的 github 名";
+    hint.innerHTML = "<b>跑在管理员电脑A</b>（推荐，零配置）：你什么都不用装，填好账号即可用，指令在管理员电脑上跑。";
+    if(setup) setup.style.display = "none";
   }
+}
+function copyCmd(){
+  const t = document.getElementById("setup_cmd").textContent;
+  navigator.clipboard.writeText(t).then(()=>toast("已复制命令")).catch(()=>{
+    const r=document.createRange(); r.selectNode(document.getElementById("setup_cmd"));
+    getSelection().removeAllRanges(); getSelection().addRange(r); toast("已选中, 手动复制");
+  });
 }
 function logout(){ document.getElementById("login").style.display="flex";
   if(cfg.mode) document.getElementById("in_mode").value=cfg.mode;
