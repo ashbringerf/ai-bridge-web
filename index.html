@@ -103,8 +103,9 @@
 
     <label>执行位置 (agent 在哪台电脑跑)</label>
     <select id="in_mode" onchange="onModeChange()">
-      <option value="A">跑在管理员电脑A (零配置, 推荐)</option>
-      <option value="self">跑在我自己电脑 (需自己装 bridge)</option>
+      <option value="A">① 跑在管理员电脑A (零配置, 推荐)</option>
+      <option value="mode3">③ 跑在我自己电脑, 模型借管理员mify (推荐给同事)</option>
+      <option value="self">② 跑在我自己电脑, 用我自己的模型key</option>
     </select>
 
     <label>你的用户名 (多人共用时区分, 如 fengtian)</label>
@@ -121,14 +122,14 @@
     <input id="in_branch" type="text" value="main" autocomplete="off">
     <p class="sub" id="mode_hint" style="margin-top:10px;font-size:12px;">指令将发到管理员电脑A 执行, 用管理员的 CLI 和工程目录。</p>
     <div id="self_setup" style="display:none;margin:8px 0;">
-      <p class="sub" style="font-size:12px;margin:4px 0;">① 先在你自己电脑的 PowerShell 里跑这行(装 relay，用你本地 opencode + 管理员 mify)：</p>
+      <p class="sub" id="setup_desc" style="font-size:12px;margin:4px 0;">① 先在你自己电脑的 PowerShell 里跑这行安装：</p>
       <div style="display:flex;gap:6px;align-items:center;">
-        <code id="setup_cmd" style="flex:1;background:#1A1A2E;color:#8fd;padding:8px 10px;border-radius:8px;font-size:12px;word-break:break-all;">irm https://ashbringerf.github.io/ai-bridge-web/relay.ps1 | iex</code>
+        <code id="setup_cmd" style="flex:1;background:#1A1A2E;color:#8fd;padding:8px 10px;border-radius:8px;font-size:12px;word-break:break-all;">irm https://ashbringerf.github.io/ai-bridge-web/setup_mode3.ps1 | iex</code>
         <button type="button" onclick="copyCmd()" style="padding:8px 10px;border:none;border-radius:8px;background:#4A6CF7;color:#fff;font-size:12px;cursor:pointer;">复制</button>
       </div>
       <p class="sub" style="font-size:12px;margin:6px 0 2px;">或者更省事 —— 下载启动器，双击即自动安装启动：</p>
-      <a href="start_relay.bat" download style="display:inline-block;padding:8px 14px;background:#2E9E5B;color:#fff;border-radius:8px;font-size:13px;text-decoration:none;">⬇ 下载启动器 start_relay.bat</a>
-      <p class="sub" style="font-size:12px;margin:6px 0;">② 装好后, 在你的工程目录跑 <code>opencode run "任务"</code> 即可。</p>
+      <a id="setup_dl" href="setup_mode3.bat" download style="display:inline-block;padding:8px 14px;background:#2E9E5B;color:#fff;border-radius:8px;font-size:13px;text-decoration:none;">⬇ 下载启动器</a>
+      <p class="sub" id="setup_note" style="font-size:12px;margin:6px 0;">② 装好并保持窗口开着后, 就能在本网页直接给你自己的电脑发任务了。</p>
     </div>
     <button class="btn" onclick="doLogin()">登录并测试连接</button>
     <div class="msg" id="login_msg"></div>
@@ -233,13 +234,18 @@ function b64decodeUtf8(b){ return decodeURIComponent(escape(atob(b.replace(/\n/g
 // 用户名净化(与 bridge._safe_user 一致): 只留字母数字_-
 function safeUser(){ return (cfg.user||"").replace(/[^a-zA-Z0-9_\-]/g,"").slice(0,40) || "default"; }
 // 消息路径: 默认用户走根目录(兼容); 其他用户走 <user>/ 子目录
-function pcPath(ts){ const u=safeUser(); return u==="default" ? `to_pc/${ts}.msg` : `to_pc/${u}/${ts}.msg`; }
+// mode3(自己电脑执行,复用A仓): 走 to_pc_local/<user>/, A的bridge不碰, 只有用户本地bridge认领
+function pcPath(ts){
+  const u=safeUser();
+  if(cfg.mode==="mode3"){ return `to_pc_local/${u}/${ts}.msg`; }
+  return u==="default" ? `to_pc/${ts}.msg` : `to_pc/${u}/${ts}.msg`;
+}
 function phonePath(ts){ const u=safeUser(); return u==="default" ? `to_phone/${ts}.msg` : `to_phone/${u}/${ts}.msg`; }
 
 async function sendCommand(text){
   const ts = String(Date.now());
   const path = pcPath(ts);
-  // 首行带口令(#token:), 供电脑A鉴权. self模式(自己信箱)不需口令; 默认用户/无口令也不带
+  // 首行带口令(#token:)供鉴权. self模式(自己信箱)不需口令; mode3/A 复用A仓需口令; 默认用户/无口令不带
   const needToken = (cfg.mode!=="self") && cfg.pass && cfg.user!=="default";
   const payload = needToken ? ("#token:"+cfg.pass+"\n"+text) : text;
   const body = { message:`cmd ${ts}`, content:b64encodeUtf8(payload), branch:cfg.branch||"main" };
@@ -290,9 +296,24 @@ function onModeChange(){
   const lbl = document.getElementById("lbl_owner");
   const ownerIn = document.getElementById("in_owner");
   const setup = document.getElementById("self_setup");
-  if(mode==="self"){
-    hint.innerHTML = "<b>跑在我自己电脑</b>：opencode 在你本地跑、改你的工程，模型走管理员的内网 mify。";
+  const cmd = document.getElementById("setup_cmd");
+  const dl  = document.getElementById("setup_dl");
+  const desc= document.getElementById("setup_desc");
+  const note= document.getElementById("setup_note");
+  if(mode==="mode3"){
+    hint.innerHTML = "<b>跑在我自己电脑 (模型借管理员mify)</b>：opencode 在你本地跑、改你的工程；模型请求经 GitHub 借管理员的内网 mify。装好后本网页可直接给你的电脑发任务。";
     if(setup) setup.style.display = "block";
+    if(cmd) cmd.textContent = "irm https://ashbringerf.github.io/ai-bridge-web/setup_mode3.ps1 | iex";
+    if(dl){ dl.setAttribute("href","setup_mode3.bat"); dl.textContent="⬇ 下载启动器 setup_mode3.bat"; }
+    if(desc) desc.textContent = "① 在你自己电脑的 PowerShell 里跑这行安装(会问你的用户名/口令/工程目录)：";
+    if(note) note.textContent = "② 装好并保持那个黑窗口开着后, 就能在本网页直接给你自己的电脑发任务了。";
+  } else if(mode==="self"){
+    hint.innerHTML = "<b>跑在我自己电脑 (用我自己的模型key)</b>：opencode 在你本地跑、改你的工程，模型用你自己配置的 key。走你自己的 GitHub 信箱仓。";
+    if(setup) setup.style.display = "block";
+    if(cmd) cmd.textContent = "irm https://ashbringerf.github.io/ai-bridge-web/install.ps1 | iex";
+    if(dl){ dl.setAttribute("href","install.ps1"); dl.textContent="⬇ 下载安装脚本 install.ps1"; }
+    if(desc) desc.textContent = "① 在你自己电脑的 PowerShell 里跑这行安装(会问你的仓库/token/工程目录)：";
+    if(note) note.textContent = "② 装好并保持窗口开着后, 就能在本网页给你自己的电脑发任务了。";
   } else {
     hint.innerHTML = "<b>跑在管理员电脑A</b>（推荐，零配置）：你什么都不用装，填好账号即可用，指令在管理员电脑上跑。";
     if(setup) setup.style.display = "none";
@@ -333,7 +354,9 @@ function enterApp(){ document.getElementById("login").style.display="none"; upda
 function updateModeBadge(){
   const el=document.getElementById("mode_badge");
   if(!el) return;
-  el.textContent = (cfg.mode==="self") ? "📍我的电脑" : "☁️电脑A";
+  el.textContent = (cfg.mode==="self") ? "📍我的电脑(自备key)"
+                 : (cfg.mode==="mode3") ? "📍我的电脑(借A mify)"
+                 : "☁️电脑A";
 }
 
 // ============ 帮助 ============
