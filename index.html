@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>AI Bridge</title>
+<style>
+  :root{
+    --primary:#4A6CF7; --primary-d:#3A54C4; --bg:#F2F4F8;
+    --me:#4A6CF7; --me-txt:#fff; --other:#fff; --other-txt:#1A1A2E;
+    --hint:#9AA0AE; --line:#E3E7EF;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);}
+  body{display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden;}
+
+  /* ===== 登录页 ===== */
+  #login{position:fixed;inset:0;background:linear-gradient(160deg,#4A6CF7,#6B4AF7);display:flex;align-items:center;justify-content:center;padding:24px;z-index:50;}
+  #login .card{background:#fff;border-radius:20px;padding:28px 22px;width:100%;max-width:380px;box-shadow:0 12px 40px rgba(0,0,0,.2);}
+  #login h1{margin:0 0 4px;font-size:24px;color:#1A1A2E;}
+  #login .sub{margin:0 0 20px;font-size:13px;color:var(--hint);}
+  #login label{display:block;font-size:13px;color:#555;margin:14px 0 5px;font-weight:600;}
+  #login input{width:100%;padding:12px 14px;font-size:15px;border:1.5px solid var(--line);border-radius:12px;outline:none;transition:border .15s;}
+  #login input:focus{border-color:var(--primary);}
+  #login .btn{margin-top:22px;width:100%;padding:13px;font-size:16px;font-weight:700;color:#fff;background:var(--primary);border:none;border-radius:12px;cursor:pointer;}
+  #login .btn:active{background:var(--primary-d);}
+  #login .msg{margin-top:12px;font-size:13px;text-align:center;min-height:18px;}
+
+  /* ===== 顶栏 ===== */
+  #bar{background:var(--primary);color:#fff;display:flex;align-items:center;gap:6px;padding:12px 14px;padding-top:calc(12px + env(safe-area-inset-top));box-shadow:0 2px 8px rgba(0,0,0,.12);flex:0 0 auto;}
+  #bar .title{font-size:17px;font-weight:700;flex:1;white-space:nowrap;}
+  #bar button{font-size:12px;font-weight:700;color:#fff;background:rgba(255,255,255,.2);border:none;border-radius:16px;padding:6px 11px;cursor:pointer;white-space:nowrap;}
+  #bar button:active{background:rgba(255,255,255,.32);}
+
+  /* ===== 消息区 ===== */
+  #msgs{flex:1;overflow-y:auto;padding:12px 10px;-webkit-overflow-scrolling:touch;}
+  .row{display:flex;margin:5px 0;}
+  .row.me{justify-content:flex-end;}
+  .bubble{max-width:82%;padding:10px 14px;font-size:14px;line-height:1.5;word-wrap:break-word;white-space:pre-wrap;}
+  .row.me .bubble{background:var(--me);color:var(--me-txt);border-radius:16px 16px 4px 16px;}
+  .row.other .bubble{background:var(--other);color:var(--other-txt);border:1px solid var(--line);border-radius:16px 16px 16px 4px;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;}
+  .bubble img{max-width:100%;border-radius:10px;display:block;}
+
+  /* ===== 输入栏 ===== */
+  #inbar{background:#fff;display:flex;align-items:flex-end;gap:6px;padding:10px;padding-bottom:calc(10px + env(safe-area-inset-bottom));box-shadow:0 -2px 8px rgba(0,0,0,.06);flex:0 0 auto;}
+  #inbar textarea{flex:1;resize:none;border:1.5px solid #DDE1EA;background:#EFF1F6;border-radius:20px;padding:10px 14px;font-size:15px;outline:none;max-height:120px;font-family:inherit;}
+  #inbar textarea:focus{border-color:var(--primary);}
+  #inbar button{border:none;border-radius:20px;padding:10px 12px;font-size:14px;cursor:pointer;white-space:nowrap;}
+  #inbar .icon{background:#EFF1F6;border:1px solid #D6DBE6;color:var(--primary);}
+  #inbar .ghost{background:#EFF1F6;border:1px solid #D6DBE6;color:var(--primary);}
+  #inbar .send{background:var(--primary);color:#fff;font-weight:700;}
+  #inbar .send:active{background:var(--primary-d);}
+
+  /* ===== 模型选择弹窗 ===== */
+  #modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:flex-end;z-index:40;}
+  #modal.show{display:flex;}
+  #modal .sheet{background:#fff;width:100%;border-radius:18px 18px 0 0;padding:16px 0 calc(16px + env(safe-area-inset-bottom));max-height:70vh;overflow-y:auto;}
+  #modal .sheet h3{margin:0 0 8px;padding:0 20px;font-size:16px;}
+  #modal .opt{padding:14px 20px;font-size:15px;display:flex;align-items:center;gap:10px;cursor:pointer;}
+  #modal .opt:active{background:#F2F4F8;}
+  #modal .opt .dot{width:18px;height:18px;border-radius:50%;border:2px solid #ccc;flex:0 0 auto;}
+  #modal .opt.sel .dot{border-color:var(--primary);background:radial-gradient(var(--primary) 40%,transparent 46%);}
+
+  #toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:rgba(0,0,0,.82);color:#fff;padding:10px 18px;border-radius:22px;font-size:14px;z-index:60;opacity:0;transition:opacity .2s;pointer-events:none;}
+  #toast.show{opacity:1;}
+
+  /* 长任务进度: 转圈 + 文案 + 进度条 */
+  .prog{display:flex;flex-direction:column;gap:8px;min-width:180px;}
+  .prog .head{display:flex;align-items:center;gap:8px;color:#4A6CF7;font-size:13px;}
+  .spinner{width:16px;height:16px;border:2px solid #cfd6ec;border-top-color:#4A6CF7;border-radius:50%;animation:spin .8s linear infinite;flex:0 0 auto;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .prog .bar{height:4px;border-radius:2px;background:#E3E7EF;overflow:hidden;}
+  .prog .bar > i{display:block;height:100%;width:30%;background:linear-gradient(90deg,#4A6CF7,#6B4AF7);border-radius:2px;animation:indet 1.4s ease-in-out infinite;}
+  @keyframes indet{0%{margin-left:-30%;}100%{margin-left:100%;}}
+</style>
+</head>
+<body>
+
+<!-- 登录页 -->
+<div id="login">
+  <div class="card">
+    <h1>AI Bridge</h1>
+    <p class="sub">连接你的 GitHub 信箱仓库</p>
+    <label>你的用户名 (多人共用时区分, 如 fengtian)</label>
+    <input id="in_user" type="text" placeholder="fengtian" autocomplete="off">
+    <label>访问口令 (管理员分配)</label>
+    <input id="in_pass" type="password" placeholder="口令" autocomplete="off">
+    <label>GitHub Token (github_pat_…)</label>
+    <input id="in_token" type="password" placeholder="github_pat_..." autocomplete="off">
+    <label>GitHub 用户名 (owner)</label>
+    <input id="in_owner" type="text" placeholder="your-github-name" autocomplete="off">
+    <label>仓库名 (repo)</label>
+    <input id="in_repo" type="text" value="opencode-bridge" autocomplete="off">
+    <label>分支 (branch)</label>
+    <input id="in_branch" type="text" value="main" autocomplete="off">
+    <button class="btn" onclick="doLogin()">登录并测试连接</button>
+    <div class="msg" id="login_msg"></div>
+  </div>
+</div>
+
+<!-- 主界面 -->
+<div id="bar">
+  <span class="title">AI Bridge</span>
+  <button id="btn_engine" onclick="cycleEngine()">opencode</button>
+  <button id="btn_model" onclick="showModel()">模型:默认</button>
+  <button onclick="testConn()">测试</button>
+  <button onclick="logout()">设置</button>
+</div>
+<div id="msgs"></div>
+<div id="inbar">
+  <textarea id="input" rows="1" placeholder="输入指令给 AI…"></textarea>
+  <button class="icon" onclick="voiceInput()">🎤</button>
+  <button class="ghost" onclick="requestShot()">截屏</button>
+  <button class="send" onclick="onSend()">发送</button>
+</div>
+
+<!-- 模型弹窗 -->
+<div id="modal" onclick="if(event.target.id==='modal')hideModel()">
+  <div class="sheet">
+    <h3 id="modal_title">模型</h3>
+    <div id="modal_list"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ============ 配置 ============
+const API = "https://api.github.com";
+const POLL_MS = 3000, WAIT_TIMEOUT_MS = 15*60*1000;
+const ENGINES = ["opencode","claude","codex"];
+const MODELS = {
+  opencode: ["默认","mify/ppio/pa/claude-opus-4-8","mify/ppio/pa/claude-sonnet-5","mify-openai/ppio/pa/gpt-5.5","deepseek/deepseek-chat"],
+  claude:   ["默认","opus","sonnet","haiku","ppio/pa/claude-opus-4-8","ppio/pa/claude-sonnet-5"],
+  codex:    ["默认","ppio/pa/gpt-5.5","ppio/pa/gpt-5.6-sol","azure_openai/gpt-5.4"],
+};
+let cfg = {};                 // {token,owner,repo,branch}
+let engineIdx = 0;
+let modelIdx = {opencode:0, claude:0, codex:0};
+
+// ============ 持久化 ============
+function loadCfg(){
+  try{ cfg = JSON.parse(localStorage.getItem("bridge_cfg")||"{}"); }catch(e){ cfg={}; }
+  engineIdx = parseInt(localStorage.getItem("engine_idx")||"0")||0;
+  try{ modelIdx = JSON.parse(localStorage.getItem("model_idx")||"{}"); }catch(e){}
+  ENGINES.forEach(e=>{ if(modelIdx[e]==null) modelIdx[e]=0; });
+}
+function saveCfg(){ localStorage.setItem("bridge_cfg", JSON.stringify(cfg)); }
+function cfgReady(){ return cfg.token && cfg.owner && cfg.repo; }
+
+// ============ GitHub API ============
+function contentsUrl(path){ return `${API}/repos/${cfg.owner}/${cfg.repo}/contents/${path}`; }
+function headers(){ return {Authorization:`Bearer ${cfg.token}`, Accept:"application/vnd.github+json", "X-GitHub-Api-Version":"2022-11-28"}; }
+function b64encodeUtf8(s){ return btoa(unescape(encodeURIComponent(s))); }
+function b64decodeUtf8(b){ return decodeURIComponent(escape(atob(b.replace(/\n/g,"")))); }
+
+// 用户名净化(与 bridge._safe_user 一致): 只留字母数字_-
+function safeUser(){ return (cfg.user||"").replace(/[^a-zA-Z0-9_\-]/g,"").slice(0,40) || "default"; }
+// 消息路径: 默认用户走根目录(兼容); 其他用户走 <user>/ 子目录
+function pcPath(ts){ const u=safeUser(); return u==="default" ? `to_pc/${ts}.msg` : `to_pc/${u}/${ts}.msg`; }
+function phonePath(ts){ const u=safeUser(); return u==="default" ? `to_phone/${ts}.msg` : `to_phone/${u}/${ts}.msg`; }
+
+async function sendCommand(text){
+  const ts = String(Date.now());
+  const path = pcPath(ts);
+  // 首行带口令(#token:), 供电脑端鉴权. 默认用户/无口令时不带
+  const payload = (cfg.pass && cfg.user!=="default") ? ("#token:"+cfg.pass+"\n"+text) : text;
+  const body = { message:`cmd ${ts}`, content:b64encodeUtf8(payload), branch:cfg.branch||"main" };
+  const r = await fetch(contentsUrl(path), {method:"PUT", headers:{...headers(),"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  if(!r.ok) throw new Error("发送失败 HTTP "+r.status+": "+(await r.text()).slice(0,120));
+  return ts;
+}
+async function fetchReply(ts){
+  const path = phonePath(ts);
+  const r = await fetch(contentsUrl(path)+"?ref="+(cfg.branch||"main"), {headers:headers()});
+  if(r.status===404) return null;
+  if(!r.ok) throw new Error("读取失败 HTTP "+r.status);
+  const obj = await r.json();
+  const text = b64decodeUtf8(obj.content);
+  deleteFile(path, obj.sha);  // 消费掉
+  return text;
+}
+async function deleteFile(path, sha){
+  try{
+    await fetch(contentsUrl(path), {method:"DELETE", headers:{...headers(),"Content-Type":"application/json"},
+      body:JSON.stringify({message:"consume "+path, sha, branch:cfg.branch||"main"})});
+  }catch(e){}
+}
+
+// ============ 登录 ============
+async function doLogin(){
+  cfg = {
+    user:  document.getElementById("in_user").value.trim()||"default",
+    pass:  document.getElementById("in_pass").value,
+    token: document.getElementById("in_token").value.trim(),
+    owner: document.getElementById("in_owner").value.trim(),
+    repo:  document.getElementById("in_repo").value.trim()||"opencode-bridge",
+    branch:document.getElementById("in_branch").value.trim()||"main",
+  };
+  const msg = document.getElementById("login_msg");
+  if(!cfg.token||!cfg.owner){ msg.style.color="#e33"; msg.textContent="请填写 Token 和用户名"; return; }
+  msg.style.color="#666"; msg.textContent="测试连接中…";
+  try{
+    const r = await fetch(`${API}/repos/${cfg.owner}/${cfg.repo}`, {headers:headers()});
+    if(r.ok){ saveCfg(); msg.style.color="#2a2"; msg.textContent="连接成功 ✓"; setTimeout(enterApp,500); }
+    else { msg.style.color="#e33"; msg.textContent="失败 HTTP "+r.status+": "+(await r.text()).slice(0,80); }
+  }catch(e){ msg.style.color="#e33"; msg.textContent="异常: "+e.message; }
+}
+function logout(){ document.getElementById("login").style.display="flex";
+  document.getElementById("in_user").value=cfg.user||"";
+  document.getElementById("in_pass").value=cfg.pass||"";
+  document.getElementById("in_token").value=cfg.token||"";
+  document.getElementById("in_owner").value=cfg.owner||"";
+  document.getElementById("in_repo").value=cfg.repo||"opencode-bridge";
+  document.getElementById("in_branch").value=cfg.branch||"main";
+}
+function enterApp(){ document.getElementById("login").style.display="none"; updateEngine(); updateModel(); }
+
+async function testConn(){
+  if(!cfgReady()){ logout(); return; }
+  try{
+    const r = await fetch(`${API}/repos/${cfg.owner}/${cfg.repo}`, {headers:headers()});
+    toast(r.ok? "连接成功 ✓" : "失败 HTTP "+r.status);
+  }catch(e){ toast("异常: "+e.message); }
+}
+
+// ============ 引擎/模型 ============
+function updateEngine(){ document.getElementById("btn_engine").textContent = ENGINES[engineIdx]; }
+function updateModel(){
+  const m = MODELS[ENGINES[engineIdx]][modelIdx[ENGINES[engineIdx]]];
+  const tail = m==="默认" ? "默认" : (m.includes("/")? m.split("/").pop() : m);
+  document.getElementById("btn_model").textContent = "模型:"+tail;
+}
+function cycleEngine(){
+  engineIdx=(engineIdx+1)%ENGINES.length;
+  localStorage.setItem("engine_idx", engineIdx);
+  updateEngine(); updateModel();
+  toast("引擎: "+ENGINES[engineIdx]);
+}
+function currentModelName(){
+  const i=modelIdx[ENGINES[engineIdx]];
+  return i===0? null : MODELS[ENGINES[engineIdx]][i];
+}
+function showModel(){
+  const eng=ENGINES[engineIdx], list=MODELS[eng];
+  document.getElementById("modal_title").textContent = eng+" 模型";
+  const box=document.getElementById("modal_list"); box.innerHTML="";
+  list.forEach((m,i)=>{
+    const d=document.createElement("div");
+    d.className="opt"+(i===modelIdx[eng]?" sel":"");
+    d.innerHTML=`<span class="dot"></span><span>${m}</span>`;
+    d.onclick=()=>{ modelIdx[eng]=i; localStorage.setItem("model_idx",JSON.stringify(modelIdx)); updateModel(); hideModel(); };
+    box.appendChild(d);
+  });
+  document.getElementById("modal").classList.add("show");
+}
+function hideModel(){ document.getElementById("modal").classList.remove("show"); }
+
+// ============ 气泡 ============
+function addBubble(text, me, isImg){
+  const row=document.createElement("div"); row.className="row "+(me?"me":"other");
+  const b=document.createElement("div"); b.className="bubble";
+  if(isImg){ const img=document.createElement("img"); img.src="data:image/png;base64,"+text; b.appendChild(img); }
+  else b.textContent=text;
+  row.appendChild(b);
+  document.getElementById("msgs").appendChild(row);
+  scrollBottom();
+  return b;
+}
+function scrollBottom(){ const m=document.getElementById("msgs"); m.scrollTop=m.scrollHeight; }
+function renderReply(bubble, reply){
+  if(reply && reply.startsWith("IMG:")){
+    bubble.textContent="";
+    const img=document.createElement("img"); img.src="data:image/png;base64,"+reply.slice(4).trim();
+    bubble.appendChild(img); scrollBottom();
+  } else { bubble.textContent=reply; scrollBottom(); }
+}
+
+// ============ 发送 + 轮询 ============
+// 把气泡变成进度动画, 返回更新"已用时"的函数
+function makeProgress(bubble, label){
+  bubble.textContent="";
+  bubble.innerHTML =
+    '<div class="prog">'
+    + '<div class="head"><span class="spinner"></span><span class="txt">'+label+' 执行中… 0s</span></div>'
+    + '<div class="bar"><i></i></div>'
+    + '</div>';
+  const txt = bubble.querySelector(".txt");
+  return (sec)=>{ if(txt) txt.textContent = label+" 执行中… "+sec+"s"; };
+}
+async function sendAndAwait(payload, bubble, label){
+  const update = makeProgress(bubble, label||"电脑");
+  try{
+    const ts=await sendCommand(payload);
+    let waited=0, reply=null;
+    while(waited<WAIT_TIMEOUT_MS){
+      await sleep(POLL_MS); waited+=POLL_MS;
+      update(Math.round(waited/1000));            // 实时刷新已用秒数
+      reply=await fetchReply(ts);
+      if(reply!=null) break;
+    }
+    renderReply(bubble, reply!=null? reply : "(等待超时, 电脑端 bridge 可能没在运行)");
+  }catch(e){ bubble.textContent="(出错: "+e.message+")"; }
+}
+function onSend(){
+  const t=document.getElementById("input").value.trim();
+  if(!t) return;
+  if(!cfgReady()){ logout(); return; }
+  document.getElementById("input").value="";
+  autoGrow();
+  addBubble(t, true);
+  const model=currentModelName();
+  const tag="@"+ENGINES[engineIdx]+(model?":"+model:"");
+  const label=ENGINES[engineIdx]+(model?"("+MODELS[ENGINES[engineIdx]][modelIdx[ENGINES[engineIdx]]]+")":"");
+  const b=addBubble("", false);
+  sendAndAwait(tag+" "+t, b, label);
+}
+function requestShot(){
+  if(!cfgReady()){ logout(); return; }
+  addBubble("[请求电脑截屏]", true);
+  const b=addBubble("", false);
+  sendAndAwait("@screenshot", b, "截屏");
+}
+
+// ============ 语音 (Web Speech API) ============
+function voiceInput(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ toast("此浏览器不支持语音识别"); return; }
+  const rec=new SR(); rec.lang="zh-CN"; rec.interimResults=false; rec.maxAlternatives=1;
+  toast("请说话…");
+  rec.onresult=(e)=>{ const t=e.results[0][0].transcript; const ta=document.getElementById("input");
+    ta.value=(ta.value?ta.value+" ":"")+t; autoGrow(); };
+  rec.onerror=(e)=>toast("语音错误: "+e.error);
+  rec.start();
+}
+
+// ============ 工具 ============
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+let toastTimer;
+function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),2000); }
+function autoGrow(){ const ta=document.getElementById("input"); ta.style.height="auto"; ta.style.height=Math.min(ta.scrollHeight,120)+"px"; }
+
+// ============ 初始化 ============
+document.getElementById("input").addEventListener("input", autoGrow);
+document.getElementById("input").addEventListener("keydown",(e)=>{
+  if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); onSend(); }
+});
+loadCfg();
+if(cfgReady()) enterApp(); else logout();
+</script>
+</body>
+</html>
